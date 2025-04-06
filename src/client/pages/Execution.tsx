@@ -29,6 +29,7 @@ import {
   Switch,
 } from '@chakra-ui/react';
 import { FiPlay, FiPause, FiSquare, FiRefreshCw, FiUpload } from 'react-icons/fi';
+import { API_BASE_URL } from '../config';
 
 interface ExecutionStatus {
   status: 'idle' | 'running' | 'paused' | 'completed' | 'error';
@@ -104,7 +105,7 @@ const Execution: React.FC = () => {
     });
 
     try {
-      const response = await fetch('/api/execute', {
+      const response = await fetch(`${API_BASE_URL}/execute/start`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -122,11 +123,22 @@ const Execution: React.FC = () => {
       }
 
       const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || '执行失败');
+      }
+
       setStatus(prev => ({
         ...prev,
         status: 'completed',
         progress: 100,
-        logs: [...prev.logs, '任务执行完成'],
+        logs: [
+          ...prev.logs, 
+          '任务执行完成',
+          ...(result.results ? result.results.map((r: any, i: number) => 
+            `实例 ${i+1}: ${r.success ? '成功' : '失败'}${r.error ? ` - ${r.error}` : ''}`
+          ) : [])
+        ],
       }));
     } catch (error: any) {
       setStatus(prev => ({

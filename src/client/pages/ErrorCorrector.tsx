@@ -36,23 +36,16 @@ import {
 } from '@chakra-ui/react';
 import { FiRefreshCw, FiEdit2, FiMessageSquare, FiUpload, FiPlay } from 'react-icons/fi';
 import { API_BASE_URL } from '../config';
+import {
+  API_PATHS,
+  ErrorRecord,
+  StartErrorCorrectionRequest,
+  StartErrorCorrectionResponse,
+  FixErrorRequest
+} from '../../types/api';
 
 // 构建WebSocket URL
 const WS_URL = API_BASE_URL.replace(/^http/, 'ws');
-
-interface ErrorRecord {
-  id: string;
-  timestamp: string;
-  selector: string;
-  action: string;
-  error: string;
-  attempts: Array<{
-    selector: string;
-    success: boolean;
-    timestamp: string;
-  }>;
-  status: 'pending' | 'fixed' | 'failed';
-}
 
 interface AIMessage {
   type: 'system' | 'ai';
@@ -183,11 +176,11 @@ const ErrorCorrector: React.FC = () => {
   const fetchErrors = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/error-correction/errors`);
+      const response = await fetch(`${API_BASE_URL}${API_PATHS.GET_ERRORS}`);
       if (!response.ok) {
         throw new Error('获取错误记录失败');
       }
-      const data = await response.json();
+      const data = await response.json() as ErrorRecord[];
       setErrors(data);
     } catch (error) {
       console.error('获取错误记录失败:', error);
@@ -213,7 +206,7 @@ const ErrorCorrector: React.FC = () => {
       };
       setAiMessages(prev => [...prev, systemMessage]);
 
-      const response = await fetch(`${API_BASE_URL}/error-correction/errors/${record.id}/retry`, {
+      const response = await fetch(`${API_BASE_URL}${API_PATHS.RETRY_ERROR(record.id)}`, {
         method: 'POST'
       });
       
@@ -221,7 +214,7 @@ const ErrorCorrector: React.FC = () => {
         throw new Error('重试失败');
       }
       
-      const result = await response.json();
+      const result = await response.json() as ErrorRecord;
       
       // 添加 AI 响应消息
       const aiMessage: AIMessage = {
@@ -231,7 +224,9 @@ const ErrorCorrector: React.FC = () => {
       };
       setAiMessages(prev => [...prev, aiMessage]);
 
-      await fetchErrors();
+      // 更新错误记录列表
+      setErrors(prev => prev.map(e => e.id === record.id ? result : e));
+      
       toast({
         title: "成功",
         description: "重试成功",
@@ -263,19 +258,23 @@ const ErrorCorrector: React.FC = () => {
       };
       setAiMessages(prev => [...prev, systemMessage]);
 
-      const response = await fetch(`${API_BASE_URL}/error-correction/errors/${selectedError.id}/fix`, {
+      const request: FixErrorRequest = {
+        selector: customSelector
+      };
+
+      const response = await fetch(`${API_BASE_URL}${API_PATHS.FIX_ERROR(selectedError.id)}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ selector: customSelector })
+        body: JSON.stringify(request)
       });
 
       if (!response.ok) {
         throw new Error('应用自定义修复失败');
       }
 
-      const result = await response.json();
+      const result = await response.json() as ErrorRecord;
       
       // 添加 AI 响应消息
       const aiMessage: AIMessage = {
@@ -285,9 +284,12 @@ const ErrorCorrector: React.FC = () => {
       };
       setAiMessages(prev => [...prev, aiMessage]);
 
+      // 更新错误记录列表
+      setErrors(prev => prev.map(e => e.id === selectedError.id ? result : e));
+
       setModalVisible(false);
       setCustomSelector('');
-      await fetchErrors();
+      
       toast({
         title: "成功",
         description: "修复成功",
@@ -377,23 +379,30 @@ const ErrorCorrector: React.FC = () => {
     }]);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/error-correction/start`, {
+      const request: StartErrorCorrectionRequest = {
+        script: scriptContent,
+        useAds,
+        adsUserId
+      };
+
+      const response = await fetch(`${API_BASE_URL}${API_PATHS.START_ERROR_CORRECTION}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          script: scriptContent,
-          useAds,
-          adsUserId
-        })
+        body: JSON.stringify(request)
       });
 
       if (!response.ok) {
         throw new Error('启动纠错失败');
       }
 
-      const result = await response.json();
+      const result = await response.json() as StartErrorCorrectionResponse;
+      
+      if (!result.success) {
+        throw new Error(result.error || '启动纠错失败');
+      }
+      
       setCorrectionId(result.correctionId);
       
       toast({
