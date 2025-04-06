@@ -17,10 +17,11 @@ export class PlaywrightScriptExecutor implements ScriptExecutor {
 
   async execute(script: string, page: Page): Promise<ExecutionResult> {
     try {
-      // 直接执行脚本，不需要额外传递 page 对象，因为在 evaluate 上下文中已经可以访问
+      // 包装脚本以确保 page 对象可用
       const wrappedScript = `
         (async () => {
           try {
+            const page = window;
             ${script}
             return { success: true, message: '执行成功' };
           } catch (error) {

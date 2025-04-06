@@ -6,6 +6,7 @@ export interface RecordedStep {
   value?: string;
   url?: string;
   timestamp: number;
+  action?: string;
   coordinates?: {
     x: number;
     y: number;
@@ -50,6 +51,10 @@ export interface ExecutionResult {
   error?: string;
   optimizedScript?: string;
   instance?: number;
+  selectorInfo?: {
+    selector: string;
+    action: string;
+  };
 }
 
 export interface SelectorAnalysis {

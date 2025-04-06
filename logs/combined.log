@@ -80,3 +80,15 @@
 {"error":"page is not defined","level":"error","message":"脚本执行失败","timestamp":"2025-04-03T19:11:05.106Z"}
 {"level":"info","message":"首次执行失败，正在优化脚本...","timestamp":"2025-04-03T19:11:05.107Z"}
 {"level":"info","message":"脚本已优化，正在重试...","timestamp":"2025-04-03T19:11:05.107Z"}
+{"level":"info","message":"服务器启动在端口 3000","timestamp":"2025-04-03T19:13:58.288Z"}
+{"level":"info","message":"Playwright 浏览器已连接","timestamp":"2025-04-03T19:14:06.654Z"}
+{"error":"page is not defined","level":"error","message":"脚本执行失败","timestamp":"2025-04-03T19:14:07.534Z"}
+{"level":"info","message":"首次执行失败，正在优化脚本...","timestamp":"2025-04-03T19:14:07.534Z"}
+{"level":"info","message":"脚本已优化，正在重试...","timestamp":"2025-04-03T19:14:07.535Z"}
+{"level":"info","message":"服务器启动在端口 3000","timestamp":"2025-04-06T10:12:38.368Z"}
+{"level":"info","message":"Playwright 浏览器已连接","timestamp":"2025-04-06T10:12:57.497Z"}
+{"error":"page is not defined","level":"error","message":"脚本执行失败","timestamp":"2025-04-06T10:12:57.834Z"}
+{"level":"info","message":"首次执行失败，正在优化脚本...","timestamp":"2025-04-06T10:12:57.835Z"}
+{"level":"info","message":"脚本已优化，正在重试...","timestamp":"2025-04-06T10:12:57.835Z"}
+{"level":"info","message":"Playwright 浏览器已关闭","timestamp":"2025-04-06T10:12:57.937Z"}
+{"level":"info","message":"服务器启动在端口 3000","timestamp":"2025-04-06T10:13:24.786Z"}
