@@ -8,11 +8,16 @@ interface ActionContext {
   value?: string;
   retryCount: number;
   previousSelectors: string[];
+  options?: Record<string, any>;
 }
 
 export class AIScriptOptimizer implements ScriptOptimizer {
   private maxRetries = 3;
   private selectorHistory = new Map<string, string[]>();
+  private supportedActions = new Set([
+    'click', 'type', 'wait', 'goto', 'select', 
+    'check', 'uncheck', 'hover', 'press'
+  ]);
 
   constructor(
     private readonly logger: Logger,
@@ -41,6 +46,11 @@ export class AIScriptOptimizer implements ScriptOptimizer {
   private async optimizeAction(action: ActionContext, page: Page): Promise<ActionContext> {
     let currentAction = { ...action };
 
+    // 对于goto操作，直接返回
+    if (currentAction.type === 'goto') {
+      return currentAction;
+    }
+
     while (currentAction.retryCount < this.maxRetries) {
       try {
         // 验证选择器
@@ -68,6 +78,11 @@ export class AIScriptOptimizer implements ScriptOptimizer {
 
   private async validateSelector(selector: string, page: Page): Promise<void> {
     try {
+      // 检查选择器语法
+      if (!this.isValidSelector(selector)) {
+        throw new Error('无效的选择器语法');
+      }
+
       // 等待选择器出现
       await page.waitForSelector(selector, { timeout: 5000 });
 
@@ -77,17 +92,38 @@ export class AIScriptOptimizer implements ScriptOptimizer {
         this.logger.warn('选择器不唯一', { selector, count: elements.length });
       }
 
-      // 验证选择器的可见性
+      // 验证选择器的可见性和可交互性
       const element = await page.$(selector);
       if (element) {
         const isVisible = await element.isVisible();
         if (!isVisible) {
           throw new Error('元素不可见');
         }
+
+        const isEnabled = await element.isEnabled();
+        if (!isEnabled) {
+          throw new Error('元素不可交互');
+        }
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '未知错误';
       throw new Error(`选择器验证失败: ${errorMessage}`);
+    }
+  }
+
+  private isValidSelector(selector: string): boolean {
+    try {
+      // 检查CSS选择器语法
+      if (selector.startsWith('//')) {
+        // XPath选择器
+        return true;
+      }
+      
+      // 尝试解析CSS选择器
+      document.querySelector(selector);
+      return true;
+    } catch {
+      return false;
     }
   }
 
@@ -115,6 +151,9 @@ export class AIScriptOptimizer implements ScriptOptimizer {
               3. 考虑元素的文本内容和属性
               4. 避免使用动态生成的属性
               5. 确保选择器的稳定性
+              6. 支持CSS选择器和XPath
+              7. 考虑元素的层级关系
+              8. 注意元素的可见性和可交互性
 
               只返回选择器字符串，不要其他解释。
             `
@@ -151,7 +190,18 @@ export class AIScriptOptimizer implements ScriptOptimizer {
 
       let action: ActionContext | null = null;
 
-      if (trimmed.startsWith('click')) {
+      // 解析各种操作类型
+      if (trimmed.startsWith('goto')) {
+        const url = trimmed.match(/goto\(['"](.+)['"]\)/)?.[1];
+        if (url) {
+          action = {
+            type: 'goto',
+            selector: url,
+            retryCount: 0,
+            previousSelectors: []
+          };
+        }
+      } else if (trimmed.startsWith('click')) {
         const selector = trimmed.match(/click\(['"](.+)['"]\)/)?.[1];
         if (selector) {
           action = {
@@ -166,6 +216,58 @@ export class AIScriptOptimizer implements ScriptOptimizer {
         if (match) {
           action = {
             type: 'type',
+            selector: match[1],
+            value: match[2],
+            retryCount: 0,
+            previousSelectors: []
+          };
+        }
+      } else if (trimmed.startsWith('select')) {
+        const match = trimmed.match(/select\(['"](.+)['"],\s*['"](.+)['"]\)/);
+        if (match) {
+          action = {
+            type: 'select',
+            selector: match[1],
+            value: match[2],
+            retryCount: 0,
+            previousSelectors: []
+          };
+        }
+      } else if (trimmed.startsWith('check')) {
+        const selector = trimmed.match(/check\(['"](.+)['"]\)/)?.[1];
+        if (selector) {
+          action = {
+            type: 'check',
+            selector,
+            retryCount: 0,
+            previousSelectors: []
+          };
+        }
+      } else if (trimmed.startsWith('uncheck')) {
+        const selector = trimmed.match(/uncheck\(['"](.+)['"]\)/)?.[1];
+        if (selector) {
+          action = {
+            type: 'uncheck',
+            selector,
+            retryCount: 0,
+            previousSelectors: []
+          };
+        }
+      } else if (trimmed.startsWith('hover')) {
+        const selector = trimmed.match(/hover\(['"](.+)['"]\)/)?.[1];
+        if (selector) {
+          action = {
+            type: 'hover',
+            selector,
+            retryCount: 0,
+            previousSelectors: []
+          };
+        }
+      } else if (trimmed.startsWith('press')) {
+        const match = trimmed.match(/press\(['"](.+)['"],\s*['"](.+)['"]\)/);
+        if (match) {
+          action = {
+            type: 'press',
             selector: match[1],
             value: match[2],
             retryCount: 0,
@@ -195,10 +297,22 @@ export class AIScriptOptimizer implements ScriptOptimizer {
 
   private actionToScript(action: ActionContext): string {
     switch (action.type) {
+      case 'goto':
+        return `goto('${action.selector}')`;
       case 'click':
         return `click('${action.selector}')`;
       case 'type':
         return `type('${action.selector}', '${action.value}')`;
+      case 'select':
+        return `select('${action.selector}', '${action.value}')`;
+      case 'check':
+        return `check('${action.selector}')`;
+      case 'uncheck':
+        return `uncheck('${action.selector}')`;
+      case 'hover':
+        return `hover('${action.selector}')`;
+      case 'press':
+        return `press('${action.selector}', '${action.value}')`;
       case 'wait':
         return `wait('${action.selector}')`;
       default:

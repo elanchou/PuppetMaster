@@ -33,6 +33,9 @@ import {
   FormControl,
   FormLabel,
   Divider,
+  Container,
+  Flex,
+  Spacer,
 } from '@chakra-ui/react';
 import { FiRefreshCw, FiEdit2, FiMessageSquare, FiUpload, FiPlay } from 'react-icons/fi';
 import { API_BASE_URL } from '../config';
@@ -70,6 +73,8 @@ const ErrorCorrector: React.FC = () => {
   const wsRef = useRef<WebSocket | null>(null);
   const messageListRef = useRef<HTMLDivElement>(null);
   const toast = useToast();
+  const [error, setError] = useState<string | null>(null);
+  const [isBrowserConnected, setIsBrowserConnected] = useState(false);
 
   // 初始化WebSocket连接
   useEffect(() => {
@@ -77,6 +82,8 @@ const ErrorCorrector: React.FC = () => {
     
     ws.onopen = () => {
       console.log('WebSocket连接已建立');
+      setIsBrowserConnected(true);
+      setError(null);
     };
     
     ws.onmessage = (event) => {
@@ -91,6 +98,16 @@ const ErrorCorrector: React.FC = () => {
         switch (data.type) {
           case 'log':
             // 处理日志消息
+            if (data.data.level === 'error') {
+              setError(data.data.message);
+              toast({
+                title: "错误",
+                description: data.data.message,
+                status: "error",
+                duration: 5000,
+                isClosable: true,
+              });
+            }
             break;
           
           case 'ai-message':
@@ -103,6 +120,7 @@ const ErrorCorrector: React.FC = () => {
             break;
           
           case 'correction-start':
+            setError(null);
             toast({
               title: "纠错开始",
               description: "开始自动纠错过程",
@@ -114,6 +132,7 @@ const ErrorCorrector: React.FC = () => {
           
           case 'correction-complete':
             setIsRunning(false);
+            setError(null);
             fetchErrors();
             toast({
               title: "纠错完成",
@@ -126,33 +145,51 @@ const ErrorCorrector: React.FC = () => {
           
           case 'correction-error':
             setIsRunning(false);
+            setError(data.data.error);
             toast({
               title: "纠错失败",
               description: data.data.error,
               status: "error",
-              duration: 3000,
+              duration: 5000,
+              isClosable: true,
+            });
+            break;
+
+          case 'browser-disconnected':
+            setIsBrowserConnected(false);
+            setError('浏览器连接已断开');
+            toast({
+              title: "连接断开",
+              description: "浏览器连接已断开，请重新连接",
+              status: "warning",
+              duration: 5000,
               isClosable: true,
             });
             break;
         }
       } catch (error) {
         console.error('解析WebSocket消息失败', error);
+        setError('解析消息失败');
       }
     };
     
     ws.onerror = (error) => {
       console.error('WebSocket错误', error);
+      setIsBrowserConnected(false);
+      setError('WebSocket连接错误');
       toast({
         title: "连接错误",
         description: "无法连接到服务器",
         status: "error",
-        duration: 3000,
+        duration: 5000,
         isClosable: true,
       });
     };
     
     ws.onclose = () => {
       console.log('WebSocket连接已关闭');
+      setIsBrowserConnected(false);
+      setError('WebSocket连接已关闭');
     };
     
     wsRef.current = ws;
@@ -360,6 +397,17 @@ const ErrorCorrector: React.FC = () => {
       return;
     }
 
+    if (!isBrowserConnected) {
+      toast({
+        title: "错误",
+        description: "浏览器未连接，请等待连接后再试",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
     if (useAds && !adsUserId) {
       toast({
         title: "错误",
@@ -372,6 +420,7 @@ const ErrorCorrector: React.FC = () => {
     }
 
     setIsRunning(true);
+    setError(null);
     setAiMessages([{
       type: 'system',
       content: '开始执行自动纠错...',
@@ -414,11 +463,12 @@ const ErrorCorrector: React.FC = () => {
       });
     } catch (error) {
       console.error('启动纠错失败:', error);
+      setError(error instanceof Error ? error.message : '启动纠错失败');
       toast({
         title: "错误",
-        description: "启动纠错失败",
+        description: error instanceof Error ? error.message : '启动纠错失败',
         status: "error",
-        duration: 3000,
+        duration: 5000,
         isClosable: true,
       });
       setIsRunning(false);
@@ -426,162 +476,174 @@ const ErrorCorrector: React.FC = () => {
   };
 
   return (
-    <Box p={6}>
-      <Heading mb={6}>错误纠正</Heading>
-      
-      <HStack spacing={8} align="flex-start">
-        <Card flex={2}>
+    <Container maxW="container.xl" py={8}>
+      <VStack spacing={8} align="stretch">
+        <Heading>错误纠正</Heading>
+        
+        {error && (
+          <Card bg="red.50">
+            <CardBody>
+              <Text color="red.500">{error}</Text>
+            </CardBody>
+          </Card>
+        )}
+        
+        <Card>
           <CardBody>
             <VStack spacing={4} align="stretch">
               <FormControl>
-                <FormLabel>上传Puppet脚本</FormLabel>
-                <input
-                  type="file"
-                  accept=".js,.ts"
-                  ref={fileInputRef}
-                  style={{ display: 'none' }}
-                  onChange={handleFileUpload}
-                />
-                <Button
-                  leftIcon={<FiUpload />}
-                  onClick={() => fileInputRef.current?.click()}
-                  width="100%"
-                >
-                  {scriptContent ? '重新上传脚本' : '上传脚本'}
-                </Button>
-                {scriptContent && (
-                  <Text fontSize="sm" color="green.500" mt={2}>
-                    ✓ 脚本已加载
-                  </Text>
-                )}
-              </FormControl>
-
-              <FormControl>
-                <FormLabel>使用 AdsPower</FormLabel>
+                <FormLabel>上传脚本</FormLabel>
                 <HStack>
-                  <Switch
-                    isChecked={useAds}
-                    onChange={(e) => setUseAds(e.target.checked)}
+                  <Input
+                    type="file"
+                    accept=".js,.ts,.txt"
+                    onChange={handleFileUpload}
+                    ref={fileInputRef}
+                    display="none"
                   />
-                  {useAds && (
-                    <Input
-                      placeholder="AdsPower 用户ID"
-                      value={adsUserId}
-                      onChange={(e) => setAdsUserId(e.target.value)}
-                    />
+                  <Button
+                    leftIcon={<FiUpload />}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    选择文件
+                  </Button>
+                  {scriptContent && (
+                    <Text>已加载脚本</Text>
                   )}
                 </HStack>
               </FormControl>
-
+              
+              <FormControl display="flex" alignItems="center">
+                <FormLabel mb="0">使用 AdsPower</FormLabel>
+                <Switch
+                  isChecked={useAds}
+                  onChange={(e) => setUseAds(e.target.checked)}
+                />
+              </FormControl>
+              
+              {useAds && (
+                <FormControl>
+                  <FormLabel>AdsPower 用户ID</FormLabel>
+                  <Input
+                    value={adsUserId}
+                    onChange={(e) => setAdsUserId(e.target.value)}
+                    placeholder="输入用户ID"
+                  />
+                </FormControl>
+              )}
+              
               <Button
                 leftIcon={<FiPlay />}
                 colorScheme="blue"
                 onClick={handleStartCorrection}
-                isLoading={loading}
-                isDisabled={!scriptContent || isRunning}
+                isLoading={isRunning}
+                loadingText="执行中..."
+                isDisabled={!scriptContent || !isBrowserConnected || (useAds && !adsUserId)}
               >
-                开始纠错
+                开始错误纠正
               </Button>
-
-              <Divider />
-
-              <HStack justify="space-between" mb={4}>
-                <Heading size="md">错误列表</Heading>
+            </VStack>
+          </CardBody>
+        </Card>
+        
+        <Card>
+          <CardBody>
+            <VStack spacing={4} align="stretch">
+              <Flex>
+                <Heading size="md">错误记录</Heading>
+                <Spacer />
                 <Button
                   leftIcon={<FiRefreshCw />}
+                  size="sm"
                   onClick={fetchErrors}
                   isLoading={loading}
                 >
                   刷新
                 </Button>
-              </HStack>
+              </Flex>
               
-              <Box maxH="500px" overflowY="auto">
+              {errors.length === 0 ? (
+                <Text color="gray.500">暂无错误记录</Text>
+              ) : (
                 <Table variant="simple">
-                  <Thead position="sticky" top={0} bg="white" zIndex={1}>
+                  <Thead>
                     <Tr>
                       <Th>时间</Th>
                       <Th>选择器</Th>
                       <Th>操作</Th>
-                      <Th>错误信息</Th>
+                      <Th>错误</Th>
                       <Th>状态</Th>
                       <Th>操作</Th>
                     </Tr>
                   </Thead>
                   <Tbody>
-                    {errors.map(error => (
+                    {errors.map((error) => (
                       <React.Fragment key={error.id}>
-                        <Tr>
+                        <Tr 
+                          cursor="pointer" 
+                          onClick={() => toggleRow(error.id)}
+                          _hover={{ bg: 'gray.50' }}
+                        >
                           <Td>{new Date(error.timestamp).toLocaleString()}</Td>
-                          <Td><Code>{error.selector}</Code></Td>
+                          <Td>
+                            <Code>{error.selector}</Code>
+                          </Td>
                           <Td>{error.action}</Td>
-                          <Td>{error.error}</Td>
+                          <Td>
+                            <Text noOfLines={1} maxW="200px">
+                              {error.error}
+                            </Text>
+                          </Td>
                           <Td>{getStatusBadge(error.status)}</Td>
                           <Td>
                             <HStack spacing={2}>
                               <IconButton
-                                aria-label="展开历史"
-                                icon={<FiMessageSquare />}
+                                aria-label="重试"
+                                icon={<FiRefreshCw />}
                                 size="sm"
-                                onClick={() => toggleRow(error.id)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRetry(error);
+                                }}
+                                isDisabled={error.status === 'fixed'}
                               />
-                              {error.status !== 'fixed' && (
-                                <>
-                                  <IconButton
-                                    aria-label="重试"
-                                    icon={<FiRefreshCw />}
-                                    size="sm"
-                                    colorScheme="blue"
-                                    onClick={() => handleRetry(error)}
-                                    isDisabled={isRunning}
-                                  />
-                                  <IconButton
-                                    aria-label="自定义修复"
-                                    icon={<FiEdit2 />}
-                                    size="sm"
-                                    colorScheme="green"
-                                    onClick={() => {
-                                      setSelectedError(error);
-                                      setModalVisible(true);
-                                    }}
-                                    isDisabled={isRunning}
-                                  />
-                                </>
-                              )}
+                              <IconButton
+                                aria-label="修复"
+                                icon={<FiEdit2 />}
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedError(error);
+                                  setModalVisible(true);
+                                }}
+                                isDisabled={error.status === 'fixed'}
+                              />
                             </HStack>
                           </Td>
                         </Tr>
                         <Tr>
                           <Td colSpan={6} p={0}>
-                            <Collapse in={expandedRows.has(error.id)} animateOpacity>
+                            <Collapse in={expandedRows.has(error.id)}>
                               <Box p={4} bg="gray.50">
-                                <Text fontWeight="bold" mb={2}>修复历史</Text>
-                                {error.attempts.length === 0 ? (
-                                  <Text>暂无修复尝试</Text>
-                                ) : (
-                                  <Table size="sm" variant="simple">
-                                    <Thead>
-                                      <Tr>
-                                        <Th>时间</Th>
-                                        <Th>选择器</Th>
-                                        <Th>结果</Th>
-                                      </Tr>
-                                    </Thead>
-                                    <Tbody>
-                                      {error.attempts.map((attempt, idx) => (
-                                        <Tr key={idx}>
-                                          <Td>{new Date(attempt.timestamp).toLocaleString()}</Td>
-                                          <Td><Code>{attempt.selector}</Code></Td>
-                                          <Td>
-                                            <Badge colorScheme={attempt.success ? 'green' : 'red'}>
-                                              {attempt.success ? '成功' : '失败'}
-                                            </Badge>
-                                          </Td>
-                                        </Tr>
-                                      ))}
-                                    </Tbody>
-                                  </Table>
-                                )}
+                                <VStack align="stretch" spacing={2}>
+                                  <Text fontWeight="bold">错误详情</Text>
+                                  <Text>{error.error}</Text>
+                                  <Divider />
+                                  <Text fontWeight="bold">尝试记录</Text>
+                                  {error.attempts.map((attempt, index) => (
+                                    <HStack key={index}>
+                                      <Badge colorScheme={attempt.success ? 'green' : 'red'}>
+                                        {attempt.success ? '成功' : '失败'}
+                                      </Badge>
+                                      <Text fontSize="sm">
+                                        {new Date(attempt.timestamp).toLocaleString()}
+                                      </Text>
+                                      {!attempt.success && (
+                                        <Code>{attempt.selector}</Code>
+                                      )}
+                                    </HStack>
+                                  ))}
+                                </VStack>
                               </Box>
                             </Collapse>
                           </Td>
@@ -590,98 +652,93 @@ const ErrorCorrector: React.FC = () => {
                     ))}
                   </Tbody>
                 </Table>
-              </Box>
+              )}
             </VStack>
           </CardBody>
         </Card>
-
-        <Card flex={1}>
-          <CardBody>
-            <VStack spacing={4} align="stretch">
-              <Heading size="md">AI交互记录</Heading>
-              <Box 
-                ref={messageListRef}
-                maxH="500px" 
-                overflowY="auto" 
-                p={2} 
-                borderWidth={1} 
-                borderRadius="md"
-                bg="gray.50"
-              >
-                <List spacing={2}>
+        
+        {correctionId && (
+          <Card>
+            <CardBody>
+              <VStack spacing={4} align="stretch">
+                <Heading size="md">AI 助手对话</Heading>
+                <Box
+                  border="1px"
+                  borderColor="gray.200"
+                  borderRadius="md"
+                  p={4}
+                  maxH="300px"
+                  overflowY="auto"
+                  bg="gray.50"
+                  ref={messageListRef}
+                >
                   {aiMessages.length === 0 ? (
-                    <ListItem>
-                      <Text color="gray.500">暂无AI交互记录</Text>
-                    </ListItem>
+                    <Text color="gray.500">暂无对话</Text>
                   ) : (
-                    aiMessages.map((msg, idx) => (
-                      <ListItem 
-                        key={idx} 
-                        p={2} 
-                        borderRadius="md" 
-                        bg={msg.type === 'system' ? 'gray.100' : 'blue.50'}
-                      >
-                        <Text fontSize="xs" color="gray.500">
-                          {new Date(msg.timestamp).toLocaleTimeString()}
-                        </Text>
-                        <Text 
-                          whiteSpace="pre-wrap" 
-                          fontFamily="monospace"
-                          fontSize="sm"
-                        >
-                          {msg.content}
-                        </Text>
-                      </ListItem>
-                    ))
+                    <List spacing={2}>
+                      {aiMessages.map((msg, index) => (
+                        <ListItem key={index}>
+                          <HStack align="start">
+                            <Badge
+                              colorScheme={msg.type === 'system' ? 'blue' : 'purple'}
+                            >
+                              {msg.type === 'system' ? '系统' : 'AI'}
+                            </Badge>
+                            <Text whiteSpace="pre-wrap">{msg.content}</Text>
+                            <Spacer />
+                            <Text fontSize="xs" color="gray.500">
+                              {new Date(msg.timestamp).toLocaleTimeString()}
+                            </Text>
+                          </HStack>
+                        </ListItem>
+                      ))}
+                    </List>
                   )}
-                </List>
-              </Box>
-            </VStack>
-          </CardBody>
-        </Card>
-      </HStack>
-
-      {/* 自定义修复模态框 */}
-      <Modal isOpen={modalVisible} onClose={() => setModalVisible(false)}>
+                </Box>
+              </VStack>
+            </CardBody>
+          </Card>
+        )}
+      </VStack>
+      
+      <Modal isOpen={modalVisible} onClose={() => setModalVisible(false)} size="lg">
         <ModalOverlay />
         <ModalContent>
-          <ModalHeader>自定义修复</ModalHeader>
+          <ModalHeader>修复错误</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
-            {selectedError && (
-              <VStack spacing={4} align="stretch">
-                <FormControl>
-                  <FormLabel>原始选择器</FormLabel>
-                  <Code p={2} display="block">
-                    {selectedError.selector}
-                  </Code>
-                </FormControl>
-                <FormControl>
-                  <FormLabel>新选择器</FormLabel>
-                  <Input 
-                    value={customSelector}
-                    onChange={(e) => setCustomSelector(e.target.value)}
-                    placeholder="输入新的选择器"
-                  />
-                </FormControl>
-              </VStack>
-            )}
+            <VStack spacing={4} align="stretch">
+              <Text>
+                <strong>选择器:</strong> {selectedError?.selector}
+              </Text>
+              <Text>
+                <strong>操作:</strong> {selectedError?.action}
+              </Text>
+              <Text>
+                <strong>错误:</strong> {selectedError?.error}
+              </Text>
+              <Divider />
+              <FormControl>
+                <FormLabel>自定义选择器</FormLabel>
+                <Input
+                  value={customSelector}
+                  onChange={(e) => setCustomSelector(e.target.value)}
+                  placeholder="输入新的选择器"
+                />
+              </FormControl>
+            </VStack>
           </ModalBody>
           <ModalFooter>
             <Button variant="ghost" mr={3} onClick={() => setModalVisible(false)}>
               取消
             </Button>
-            <Button 
-              colorScheme="blue" 
-              onClick={handleCustomFix}
-              isDisabled={!customSelector}
-            >
-              应用
+            <Button colorScheme="blue" onClick={handleCustomFix}>
+              应用修复
             </Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
-    </Box>
+    </Container>
   );
 };
 
