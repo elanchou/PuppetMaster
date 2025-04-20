@@ -21,6 +21,37 @@ export class AdsConnector implements BrowserConnector {
     this.baseUrl = 'http://local.adspower.net:50325';
   }
 
+  // 启动浏览器
+  async start(userId: string): Promise<AdsResponse['data']> {
+    try {
+      const response = await axios.get<AdsResponse>(
+        `${this.baseUrl}/api/v1/browser/start?user_id=${userId}`
+      );
+      
+      if (response.data.code !== 0 || !response.data.data.ws?.puppeteer) {
+        throw new Error('AdsPower 启动失败或返回数据无效');
+      }
+
+      this.userId = userId;
+      return response.data.data;
+    } catch (error) {
+      this.logger.error('启动 AdsPower 浏览器失败', error);
+      throw error;
+    }
+  }
+
+  // 停止浏览器
+  async stop(userId: string): Promise<void> {
+    try {
+      await axios.get(`${this.baseUrl}/api/v1/browser/stop?user_id=${userId}`);
+      this.userId = null;
+      this.logger.info(`AdsPower 浏览器已停止: ${userId}`);
+    } catch (error) {
+      this.logger.error('停止 AdsPower 浏览器失败', error);
+      throw error;
+    }
+  }
+
   async connect(userId?: string): Promise<{ browser: Browser; context: BrowserContext }> {
     try {
       if (userId) {
@@ -49,9 +80,12 @@ export class AdsConnector implements BrowserConnector {
         this.logger.info('已启动默认浏览器');
       }
 
-      return { browser: this.browser, context: this.context };
+      return {
+        browser: this.browser,
+        context: this.context
+      };
     } catch (error) {
-      this.logger.error('浏览器连接失败', error);
+      this.logger.error('连接浏览器失败', error);
       throw error;
     }
   }

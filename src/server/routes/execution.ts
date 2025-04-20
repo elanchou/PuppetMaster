@@ -41,29 +41,117 @@ const executor = new PlaywrightScriptExecutor(logger);
 // 创建自动化实例
 const automator = new Automator(config, connector, optimizer, executor, logger);
 
+// 启动浏览器
+router.get('/start', async (req, res) => {
+  try {
+    const { user_id } = req.query;
+    
+    if (!user_id) {
+      return res.status(400).json({ 
+        success: false,
+        error: '缺少必要参数 user_id' 
+      });
+    }
+
+    const result = await connector.start(user_id as string);
+    res.json({ 
+      success: true, 
+      data: result 
+    });
+  } catch (error) {
+    logger.error('启动浏览器失败', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error instanceof Error ? error.message : '未知错误' 
+    });
+  }
+});
+
+// 停止浏览器
+router.get('/stop', async (req, res) => {
+  try {
+    const { user_id } = req.query;
+    
+    if (!user_id) {
+      return res.status(400).json({ 
+        success: false,
+        error: '缺少必要参数 user_id' 
+      });
+    }
+
+    await connector.stop(user_id as string);
+    res.json({ 
+      success: true 
+    });
+  } catch (error) {
+    logger.error('停止浏览器失败', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error instanceof Error ? error.message : '未知错误' 
+    });
+  }
+});
+
 // 执行脚本
-router.post('/start', async (req, res) => {
+router.post('/execute', async (req, res) => {
   try {
     const { script, instances, useAds, adsUserId } = req.body;
     
+    logger.info('收到执行请求', { 
+      scriptLength: script ? script.length : 0,
+      instances, 
+      useAds, 
+      adsUserId 
+    });
+    
     if (!script) {
+      logger.error('缺少必要参数: script', {});
       return res.status(400).json({ 
         success: false,
-        error: '缺少必要参数' 
+        error: '缺少必要参数: script' 
       });
     }
 
     if (useAds && !adsUserId) {
+      logger.error('使用 AdsPower 时缺少用户ID', {});
       return res.status(400).json({ 
         success: false,
         error: '使用 AdsPower 时需要提供用户ID' 
       });
     }
 
-    await automator.initialize(useAds, adsUserId);
-    const results = await automator.executeScript(script, instances);
-    await automator.cleanup();
+    logger.info('初始化自动化实例...', {});
+    try {
+      await automator.initialize(useAds, adsUserId);
+    } catch (initError) {
+      logger.error('初始化失败', initError);
+      return res.status(500).json({ 
+        success: false, 
+        error: `初始化失败: ${initError instanceof Error ? initError.message : '未知错误'}` 
+      });
+    }
+    
+    logger.info('开始执行脚本...', {});
+    let results;
+    try {
+      results = await automator.executeScript(script, instances || 1);
+    } catch (execError) {
+      logger.error('脚本执行失败', execError);
+      return res.status(500).json({ 
+        success: false, 
+        error: `脚本执行失败: ${execError instanceof Error ? execError.message : '未知错误'}` 
+      });
+    }
+    
+    logger.info('清理资源...', {});
+    try {
+      await automator.cleanup();
+    } catch (cleanupError) {
+      logger.error('清理资源失败', cleanupError);
+      // 这里不返回错误，因为脚本已经执行完成
+    }
 
+    logger.info('执行完成', { results });
     res.json({ 
       success: true, 
       results 

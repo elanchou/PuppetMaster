@@ -105,7 +105,7 @@ const Execution: React.FC = () => {
     });
 
     try {
-      const response = await fetch(`${API_BASE_URL}/execute/start`, {
+      const response = await fetch(`${API_BASE_URL}/v1/browser/execute`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

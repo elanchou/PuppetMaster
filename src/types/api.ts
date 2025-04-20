@@ -82,12 +82,12 @@ export interface StartErrorCorrectionResponse extends ApiResponse {
 // API路径常量
 export const API_PATHS = {
   // 执行相关
-  EXECUTE_SCRIPT: '/execute/start',
-  GET_SCRIPT_STATUSES: '/execute/statuses',
+  EXECUTE_SCRIPT: '/v1/browser/execute',
+  GET_SCRIPT_STATUSES: '/v1/browser/statuses',
   
   // 错误纠正相关
-  START_ERROR_CORRECTION: '/error-correction/start',
-  GET_ERRORS: '/error-correction/errors',
-  RETRY_ERROR: (id: string) => `/error-correction/errors/${id}/retry`,
-  FIX_ERROR: (id: string) => `/error-correction/errors/${id}/fix`,
+  START_ERROR_CORRECTION: '/v1/error-correction/start',
+  GET_ERRORS: '/v1/error-correction/errors',
+  RETRY_ERROR: (id: string) => `/v1/error-correction/errors/${id}/retry`,
+  FIX_ERROR: (id: string) => `/v1/error-correction/errors/${id}/fix`,
 }; 
