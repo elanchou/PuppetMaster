@@ -43,7 +43,7 @@ export class PlaywrightScriptExecutor implements ScriptExecutor {
       `;
 
       // 注入 page 对象到页面上下文
-      await page.evaluateOnNewDocument(() => {
+      await page.addInitScript(() => {
         (window as any).__playwright_page = page;
       });
 
@@ -105,14 +105,8 @@ export class PlaywrightScriptExecutor implements ScriptExecutor {
 
     for (const { name, fn } of functions) {
       if (!this.registeredFunctions.has(name)) {
-        try {
-          await page.exposeFunction(name, fn);
-          this.registeredFunctions.add(name);
-        } catch (error) {
-          if (!(error instanceof Error && error.message.includes('already registered'))) {
-            throw error;
-          }
-        }
+        await page.exposeFunction(name, fn);
+        this.registeredFunctions.add(name);
       }
     }
   }

@@ -9,7 +9,7 @@ import {
   useColorMode,
   Text,
 } from '@chakra-ui/react';
-import { FiSun, FiMoon, FiHome, FiPlay, FiSettings, FiList, FiCheck } from 'react-icons/fi';
+import { FiSun, FiMoon, FiHome, FiPlay, FiSettings, FiList, FiCheck, FiCpu } from 'react-icons/fi';
 
 const Navbar: React.FC = () => {
   const { colorMode, toggleColorMode } = useColorMode();
@@ -37,6 +37,10 @@ const Navbar: React.FC = () => {
             <Link as={RouterLink} to="/execution" display="flex" alignItems="center">
               <FiPlay />
               <Text ml={2}>执行</Text>
+            </Link>
+            <Link as={RouterLink} to="/ai-pilot" display="flex" alignItems="center">
+              <FiCpu />
+              <Text ml={2}>AI Pilot</Text>
             </Link>
             <Link as={RouterLink} to="/settings" display="flex" alignItems="center">
               <FiSettings />

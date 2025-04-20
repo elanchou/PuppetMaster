@@ -1,6 +1,6 @@
 import { ScriptOptimizer, Logger } from '../../../types';
 import { Page } from 'playwright';
-import { AIHandler } from '../../../ai/AIHandler';
+import { AIHandler } from '../../../core/ai/AIHandler';
 
 interface ActionContext {
   type: string;
@@ -14,10 +14,6 @@ interface ActionContext {
 export class AIScriptOptimizer implements ScriptOptimizer {
   private maxRetries = 3;
   private selectorHistory = new Map<string, string[]>();
-  private supportedActions = new Set([
-    'click', 'type', 'wait', 'goto', 'select', 
-    'check', 'uncheck', 'hover', 'press'
-  ]);
 
   constructor(
     private readonly logger: Logger,
@@ -99,197 +95,100 @@ export class AIScriptOptimizer implements ScriptOptimizer {
         if (!isVisible) {
           throw new Error('元素不可见');
         }
-
-        const isEnabled = await element.isEnabled();
-        if (!isEnabled) {
-          throw new Error('元素不可交互');
-        }
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : '未知错误';
-      throw new Error(`选择器验证失败: ${errorMessage}`);
+      throw new Error(`选择器验证失败: ${error instanceof Error ? error.message : '未知错误'}`);
     }
   }
 
   private isValidSelector(selector: string): boolean {
-    try {
-      // 检查CSS选择器语法
-      if (selector.startsWith('//')) {
-        // XPath选择器
-        return true;
-      }
-      
-      // 尝试解析CSS选择器
-      document.querySelector(selector);
-      return true;
-    } catch {
-      return false;
-    }
+    // 简单的选择器语法验证
+    const validPatterns = [
+      /^[a-zA-Z][a-zA-Z0-9_-]*$/,  // ID选择器
+      /^\.[a-zA-Z][a-zA-Z0-9_-]*$/,  // 类选择器
+      /^[a-zA-Z][a-zA-Z0-9_-]*$/,  // 标签选择器
+      /^\[[a-zA-Z][a-zA-Z0-9_-]*\]$/,  // 属性选择器
+      /^[a-zA-Z][a-zA-Z0-9_-]* > [a-zA-Z][a-zA-Z0-9_-]*$/,  // 子元素选择器
+      /^[a-zA-Z][a-zA-Z0-9_-]* [a-zA-Z][a-zA-Z0-9_-]*$/,  // 后代选择器
+    ];
+
+    return validPatterns.some(pattern => pattern.test(selector));
   }
 
   private async findAlternativeSelector(action: ActionContext, page: Page): Promise<string | null> {
     try {
+      // 获取页面HTML
       const html = await page.content();
-      const response = await this.aiHandler.chat.completions.create({
-        model: 'deepseek-chat',
-        messages: [
-          {
-            role: 'system',
-            content: '你是一个专门优化网页选择器的AI助手。请分析当前页面并提供更好的选择器。'
-          },
-          {
-            role: 'user',
-            content: `
-              当前选择器: ${action.selector}
-              操作类型: ${action.type}
-              历史选择器: ${action.previousSelectors.join(', ')}
-              页面HTML: ${html}
 
-              请分析并提供一个新的选择器，要求：
-              1. 必须唯一定位到目标元素
-              2. 优先使用 id、name、可靠的 class
-              3. 考虑元素的文本内容和属性
-              4. 避免使用动态生成的属性
-              5. 确保选择器的稳定性
-              6. 支持CSS选择器和XPath
-              7. 考虑元素的层级关系
-              8. 注意元素的可见性和可交互性
+      // 使用AI生成新的选择器
+      const prompt = `
+        当前选择器: ${action.selector}
+        操作类型: ${action.type}
+        页面HTML: ${html}
+        
+        请生成一个新的选择器，要求：
+        1. 能够准确定位到目标元素
+        2. 尽可能稳定，不依赖于动态生成的ID或类名
+        3. 优先使用语义化的选择器（如role、aria-label等）
+        4. 如果可能，使用多个选择器组合以提高稳定性
+      `;
 
-              只返回选择器字符串，不要其他解释。
-            `
-          }
-        ]
-      });
+      const response = await this.aiHandler.generateResponse(prompt);
+      const newSelector = response.trim();
 
-      const newSelector = response.choices[0]?.message?.content?.trim();
-      if (newSelector && newSelector !== action.selector) {
-        // 验证新选择器
-        await this.validateSelector(newSelector, page);
+      // 验证新选择器
+      if (this.isValidSelector(newSelector)) {
         return newSelector;
       }
-    } catch (error) {
-      this.logger.error('查找替代选择器失败', error);
-    }
 
-    return null;
+      return null;
+    } catch (error) {
+      this.logger.error('生成替代选择器失败', error);
+      return null;
+    }
   }
 
   private updateSelectorHistory(oldSelector: string, newSelector: string) {
-    const history = this.selectorHistory.get(oldSelector) || [];
-    history.push(newSelector);
-    this.selectorHistory.set(oldSelector, history);
+    if (!this.selectorHistory.has(oldSelector)) {
+      this.selectorHistory.set(oldSelector, []);
+    }
+    this.selectorHistory.get(oldSelector)?.push(newSelector);
   }
 
   private parseScript(script: string): ActionContext[] {
     const actions: ActionContext[] = [];
-    const lines = script.split('\n');
+    const lines = script.split('\n').filter(line => line.trim());
 
     for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('//')) continue;
+      const parts = line.trim().split(/\s+/);
+      if (parts.length < 2) continue;
 
-      let action: ActionContext | null = null;
+      const action: ActionContext = {
+        type: parts[0],
+        selector: parts[1],
+        retryCount: 0,
+        previousSelectors: [],
+      };
 
-      // 解析各种操作类型
-      if (trimmed.startsWith('goto')) {
-        const url = trimmed.match(/goto\(['"](.+)['"]\)/)?.[1];
-        if (url) {
-          action = {
-            type: 'goto',
-            selector: url,
-            retryCount: 0,
-            previousSelectors: []
-          };
-        }
-      } else if (trimmed.startsWith('click')) {
-        const selector = trimmed.match(/click\(['"](.+)['"]\)/)?.[1];
-        if (selector) {
-          action = {
-            type: 'click',
-            selector,
-            retryCount: 0,
-            previousSelectors: []
-          };
-        }
-      } else if (trimmed.startsWith('type')) {
-        const match = trimmed.match(/type\(['"](.+)['"],\s*['"](.+)['"]\)/);
-        if (match) {
-          action = {
-            type: 'type',
-            selector: match[1],
-            value: match[2],
-            retryCount: 0,
-            previousSelectors: []
-          };
-        }
-      } else if (trimmed.startsWith('select')) {
-        const match = trimmed.match(/select\(['"](.+)['"],\s*['"](.+)['"]\)/);
-        if (match) {
-          action = {
-            type: 'select',
-            selector: match[1],
-            value: match[2],
-            retryCount: 0,
-            previousSelectors: []
-          };
-        }
-      } else if (trimmed.startsWith('check')) {
-        const selector = trimmed.match(/check\(['"](.+)['"]\)/)?.[1];
-        if (selector) {
-          action = {
-            type: 'check',
-            selector,
-            retryCount: 0,
-            previousSelectors: []
-          };
-        }
-      } else if (trimmed.startsWith('uncheck')) {
-        const selector = trimmed.match(/uncheck\(['"](.+)['"]\)/)?.[1];
-        if (selector) {
-          action = {
-            type: 'uncheck',
-            selector,
-            retryCount: 0,
-            previousSelectors: []
-          };
-        }
-      } else if (trimmed.startsWith('hover')) {
-        const selector = trimmed.match(/hover\(['"](.+)['"]\)/)?.[1];
-        if (selector) {
-          action = {
-            type: 'hover',
-            selector,
-            retryCount: 0,
-            previousSelectors: []
-          };
-        }
-      } else if (trimmed.startsWith('press')) {
-        const match = trimmed.match(/press\(['"](.+)['"],\s*['"](.+)['"]\)/);
-        if (match) {
-          action = {
-            type: 'press',
-            selector: match[1],
-            value: match[2],
-            retryCount: 0,
-            previousSelectors: []
-          };
-        }
-      } else if (trimmed.startsWith('wait')) {
-        const selector = trimmed.match(/wait\(['"](.+)['"]\)/)?.[1];
-        if (selector) {
-          action = {
-            type: 'wait',
-            selector,
-            retryCount: 0,
-            previousSelectors: []
-          };
-        }
+      // 处理不同类型的操作
+      switch (action.type) {
+        case 'click':
+        case 'type':
+          if (parts.length >= 3) {
+            action.value = parts.slice(2).join(' ');
+          }
+          break;
+        case 'wait':
+          if (parts.length >= 3) {
+            action.options = { timeout: parseInt(parts[2], 10) };
+          }
+          break;
+        case 'goto':
+          action.selector = parts.slice(1).join(' ');
+          break;
       }
 
-      if (action) {
-        action.previousSelectors = this.selectorHistory.get(action.selector) || [];
-        actions.push(action);
-      }
+      actions.push(action);
     }
 
     return actions;
@@ -297,24 +196,14 @@ export class AIScriptOptimizer implements ScriptOptimizer {
 
   private actionToScript(action: ActionContext): string {
     switch (action.type) {
-      case 'goto':
-        return `goto('${action.selector}')`;
       case 'click':
-        return `click('${action.selector}')`;
+        return `click ${action.selector}`;
       case 'type':
-        return `type('${action.selector}', '${action.value}')`;
-      case 'select':
-        return `select('${action.selector}', '${action.value}')`;
-      case 'check':
-        return `check('${action.selector}')`;
-      case 'uncheck':
-        return `uncheck('${action.selector}')`;
-      case 'hover':
-        return `hover('${action.selector}')`;
-      case 'press':
-        return `press('${action.selector}', '${action.value}')`;
+        return `type ${action.selector} ${action.value || ''}`;
       case 'wait':
-        return `wait('${action.selector}')`;
+        return `wait ${action.selector} ${action.options?.timeout || 5000}`;
+      case 'goto':
+        return `goto ${action.selector}`;
       default:
         return '';
     }

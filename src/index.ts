@@ -9,7 +9,7 @@ import { AIScriptOptimizer } from './core/browser/optimizers';
 import { PlaywrightScriptExecutor } from './core/browser/executors';
 import dotenv from 'dotenv';
 import path from 'path';
-import { AIHandler } from './ai/AIHandler';
+import { AIHandler } from './core/ai/AIHandler';
 
 dotenv.config();
 

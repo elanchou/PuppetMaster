@@ -38,13 +38,12 @@ export interface ExecuteScriptResponse extends ApiResponse {
 // 脚本执行状态接口
 export interface ScriptStatus {
   id: string;
-  startTime: string;
-  endTime?: string;
-  status: 'running' | 'completed' | 'failed' | 'pending';
+  startTime: number;
+  status: 'pending' | 'running' | 'completed' | 'failed';
   progress: number;
-  currentStep?: number;
+  currentStep?: string;
   totalSteps?: number;
-  logs?: string[];
+  error?: string;
 }
 
 // 错误记录接口
@@ -81,13 +80,18 @@ export interface StartErrorCorrectionResponse extends ApiResponse {
 
 // API路径常量
 export const API_PATHS = {
-  // 执行相关
-  EXECUTE_SCRIPT: '/v1/browser/execute',
-  GET_SCRIPT_STATUSES: '/v1/browser/statuses',
-  
-  // 错误纠正相关
-  START_ERROR_CORRECTION: '/v1/error-correction/start',
-  GET_ERRORS: '/v1/error-correction/errors',
-  RETRY_ERROR: (id: string) => `/v1/error-correction/errors/${id}/retry`,
-  FIX_ERROR: (id: string) => `/v1/error-correction/errors/${id}/fix`,
-}; 
+  EXECUTE_SCRIPT: '/v1/execute',
+  GET_SCRIPT_STATUSES: '/v1/statuses',
+  START_ERROR_CORRECTION: '/v1/errors/start',
+  GET_ERRORS: '/v1/errors',
+  RETRY_ERROR: (id: string) => `/v1/errors/${id}/retry`,
+  FIX_ERROR: (id: string) => `/v1/errors/${id}/fix`,
+  EXECUTE_AI_PILOT: '/v1/ai-pilot/execute',
+} as const;
+
+export interface RecordSession {
+  id: string;
+  timestamp: string;
+  script: string;
+  status: string;
+} 

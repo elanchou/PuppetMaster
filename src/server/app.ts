@@ -3,6 +3,7 @@ import cors from 'cors';
 import { executionRouter } from './routes/execution';
 import { errorCorrectionRouter } from './routes/error-correction';
 import errorsRouter from './routes/errors';
+import aiPilotRouter from './routes/ai-pilot';
 
 const app = express();
 
@@ -14,6 +15,7 @@ app.use(express.json());
 app.use('/api/v1/browser', executionRouter);
 app.use('/api/v1/error-correction', errorCorrectionRouter);
 app.use('/api/v1/errors', errorsRouter);
+app.use('/api/v1/ai-pilot', aiPilotRouter);
 
 // 健康检查
 app.get('/health', (_req, res) => {

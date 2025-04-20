@@ -5,7 +5,7 @@ import { AutomationConfig } from '../../types';
 import { AdsConnector } from '../../core/browser/connectors';
 import { AIScriptOptimizer } from '../../core/browser/optimizers';
 import { PlaywrightScriptExecutor } from '../../core/browser/executors';
-import { AIHandler } from '../../ai/AIHandler';
+import { AIHandler } from '../../core/ai/AIHandler';
 import path from 'path';
 
 const router = Router();

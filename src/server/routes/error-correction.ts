@@ -5,7 +5,7 @@ import { PlaywrightScriptExecutor } from '../../core/browser/executors/Playwrigh
 import { AdsConnector } from '../../core/browser/connectors/AdsConnector';
 import { PlaywrightConnector } from '../../core/browser/connectors/PlaywrightConnector';
 import { Logger } from '../../utils/logger';
-import { AIHandler } from '../../ai/AIHandler';
+import { AIHandler } from '../../core/ai/AIHandler';
 import { AutomationConfig } from '../../types';
 import { WebSocketServer } from '../../websocket/WebSocketServer';
 import { v4 as uuidv4 } from 'uuid';
@@ -78,7 +78,7 @@ router.post('/start', async (req, res) => {
       apiKey: process.env.OPENAI_API_KEY || ''
     };
     const aiHandler = new AIHandler(aiConfig, {
-      onMessage: (type, content) => {
+      onMessage: (type: string, content: string) => {
         // 发送AI消息到WebSocket
         WebSocketServer.getInstance().broadcast('ai-message', {
           correctionId,
