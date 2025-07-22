@@ -171,7 +171,21 @@ const Executer: React.FC = () => {
   return (
     <Container maxW="container.xl" py={8}>
       <VStack spacing={8} align="stretch">
-        <Heading>脚本执行器</Heading>
+        <VStack align="start" spacing={2} mb={6}>
+          <Heading 
+            size="2xl" 
+            fontWeight="bold" 
+            color={useColorModeValue('gray.800', 'white')}
+          >
+            脚本执行器
+          </Heading>
+          <Text 
+            fontSize="lg" 
+            color={useColorModeValue('gray.600', 'gray.400')}
+          >
+            上传并执行自动化脚本文件
+          </Text>
+        </VStack>
         
         <Card>
           <CardBody>
@@ -280,4 +294,4 @@ const Executer: React.FC = () => {
   );
 };
 
-export default Executer; 
+export default Executer;

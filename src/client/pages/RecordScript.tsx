@@ -37,7 +37,7 @@ import {
   Flex,
   Spacer,
 } from '@chakra-ui/react';
-import { FiRefreshCw, FiEdit2, FiMessageSquare, FiUpload, FiPlay, FiStop } from 'react-icons/fi';
+import { FiRefreshCw, FiEdit2, FiMessageSquare, FiUpload, FiPlay, FiSquare } from 'react-icons/fi';
 import { API_BASE_URL } from '../config';
 import { API_PATHS, RecordSession } from '../../types/api';
 
@@ -400,7 +400,7 @@ const RecordScript: React.FC = () => {
               )}
               
               <Button
-                leftIcon={isRecording ? <FiStop /> : <FiPlay />}
+                leftIcon={isRecording ? <FiSquare /> : <FiPlay />}
                 colorScheme={isRecording ? "red" : "blue"}
                 onClick={isRecording ? handleStopRecording : handleStartRecording}
                 isLoading={isRecording}
@@ -567,4 +567,4 @@ const RecordScript: React.FC = () => {
   );
 };
 
-export default RecordScript; 
+export default RecordScript;

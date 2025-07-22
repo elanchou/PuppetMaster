@@ -38,6 +38,7 @@ import {
   Spacer,
   TableContainer,
   CardHeader,
+  useColorModeValue,
 } from '@chakra-ui/react';
 import { FiRefreshCw, FiEdit2, FiMessageSquare, FiUpload, FiPlay } from 'react-icons/fi';
 import { API_BASE_URL } from '../config';
@@ -359,10 +360,24 @@ const ExecuteScript: React.FC = () => {
   return (
     <Container maxW="container.xl" py={8}>
       <VStack spacing={8} align="stretch">
-        <Heading>脚本执行</Heading>
+        <VStack align="start" spacing={2} mb={6}>
+          <Heading 
+            size="2xl" 
+            fontWeight="bold" 
+            color={useColorModeValue('gray.800', 'white')}
+          >
+            脚本执行
+          </Heading>
+          <Text 
+            fontSize="lg" 
+            color={useColorModeValue('gray.600', 'gray.400')}
+          >
+            在线编辑和执行自动化脚本代码
+          </Text>
+        </VStack>
         
         {error && (
-          <Card bg="red.50">
+          <Card>
             <CardBody>
               <Text color="red.500">{error}</Text>
             </CardBody>
@@ -595,4 +610,4 @@ const ExecuteScript: React.FC = () => {
   );
 };
 
-export default ExecuteScript; 
+export default ExecuteScript;
